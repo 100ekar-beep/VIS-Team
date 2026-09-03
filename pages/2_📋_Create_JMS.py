@@ -45,7 +45,7 @@ def create_jms_dialog():
         rl_id = st.text_input("RL ID", value=st.session_state.get("jms_rl_id", ""), key="jms_rl_id")
         supervisor = st.text_input(
             "Partner Supervisor Name",
-            value=st.session_state.get("jms_supervisor", user["full_name"]),
+            value=st.session_state.get("jms_supervisor", user["team_name"]),
             key="jms_supervisor",
         )
     with hc2:
