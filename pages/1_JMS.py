@@ -119,6 +119,8 @@ if "jms_active_site_id" not in st.session_state:
     st.session_state.jms_active_site_id = None
 if "last_jms_pdf" not in st.session_state:
     st.session_state.last_jms_pdf = None
+if "jms_open_site" not in st.session_state:
+    st.session_state.jms_open_site = None
 
 
 @st.dialog("Create JMS", width="large")
@@ -173,7 +175,7 @@ def create_jms_dialog(site: dict):
                 )
             st.rerun()
 
-    st.markdown("**+ Add a single item**")
+    st.markdown("**Add item in JMS**")
     if items_master.empty:
         st.warning("Item Code table mein abhi koi items nahi hai. Pehle wahan items add karo.")
     else:
@@ -185,17 +187,17 @@ def create_jms_dialog(site: dict):
                 format_func=lambda code: f"{code} — {items_master.set_index('item_code').loc[code, 'item_description']}",
             )
         with ac2:
-            qty_input = st.number_input("Qty", min_value=0.0, step=1.0, value=1.0, key="add_qty")
+            qty_input = st.number_input("Qty", min_value=0.0, step=1.0, value=None, placeholder="0", key="add_qty")
         with ac3:
             st.write("")
             st.write("")
-            if st.button("+ Item", use_container_width=True):
+            if st.button("Add in JMS", use_container_width=True):
                 row = items_master.set_index("item_code").loc[item_choice]
                 st.session_state.jms_line_items.append(
                     {
                         "item_code": item_choice,
                         "item_description": truncate_words(row["item_description"]),
-                        "qty": qty_input,
+                        "qty": qty_input if qty_input is not None else 0.0,
                         "remarks": "",
                     }
                 )
@@ -251,6 +253,19 @@ def create_jms_dialog(site: dict):
         )
         st.caption("Note: Ye PDF sirf aapke mobile/device pe save hogi — Supabase mein kuch save nahi hota.")
 
+    st.divider()
+    if st.button("✖ Close", use_container_width=True):
+        st.session_state.jms_open_site = None
+        st.rerun()
+
+
+# --- Keep the dialog open across reruns (fixes it closing after any click) --
+# The dialog must be (re-)invoked on every script run for as long as a site
+# is "open", not just inside the button's own if-block — otherwise a rerun
+# triggered from inside the dialog (e.g. adding an item) causes it to vanish.
+if st.session_state.jms_open_site is not None:
+    create_jms_dialog(st.session_state.jms_open_site)
+
 
 # --- Sites table / cards with a "Create JMS" action per row -----------------
 if st.session_state.jms_view_mode == "cards":
@@ -268,7 +283,8 @@ if st.session_state.jms_view_mode == "cards":
                 unsafe_allow_html=True,
             )
             if st.button("🧾 Create JMS", key=f"create_jms_card_{row.get('id')}", use_container_width=True, type="primary"):
-                create_jms_dialog(row.to_dict())
+                st.session_state.jms_open_site = row.to_dict()
+                st.rerun()
 else:
     # ---------------------------------------------------------------
     # DESKTOP WIDE TABLE VIEW
@@ -290,4 +306,5 @@ else:
             rcols[3].markdown(f"<div class='tbl-cell'>{row.get('Site Name', '')}</div>", unsafe_allow_html=True)
             with rcols[4]:
                 if st.button("🧾 Create JMS", key=f"create_jms_{row.get('id')}", use_container_width=True, type="primary"):
-                    create_jms_dialog(row.to_dict())
+                    st.session_state.jms_open_site = row.to_dict()
+                    st.rerun()
