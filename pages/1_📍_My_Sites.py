@@ -14,10 +14,14 @@ user = require_login()
 st.title("📍 My Sites")
 st.caption(f"Sites allocated to {user['full_name']}")
 
-sites_df = get_sites_for_user(user["id"])
+sites_df = get_sites_for_user(user["full_name"])
 
 if sites_df.empty:
-    st.warning("Koi site allocate nahi hui hai aapko abhi. Admin se contact karo.")
+    st.warning(
+        f"'{user['full_name']}' naam se site_data mein koi site nahi mili. "
+        "Check karo ki site_data ke 'Team Name' column mein aapka naam exactly "
+        "isi spelling mein hai."
+    )
     st.stop()
 
 st.dataframe(sites_df.drop(columns=["id"], errors="ignore"), use_container_width=True, hide_index=True)
