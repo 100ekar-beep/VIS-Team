@@ -32,16 +32,12 @@ DEMO_SITES = [
 ]
 
 DEMO_ITEMS = [
-    {"item_code": "ITM-001", "item_description": "Supply & Laying of Cable,16 Sq MM,1 Core Green,Copper Unarmoured", "unit": "Meter"},
-    {"item_code": "ITM-002", "item_description": "Supply & Laying of Cable,70 Sq MM,1 Core Black,Copper Unarmoured", "unit": "Meter"},
-    {"item_code": "ITM-003", "item_description": "Supply & Laying of Cable,70 Sq MM,1 Core Red,Copper Unarmoured", "unit": "Meter"},
-    {"item_code": "ITM-004", "item_description": "GI Wire Reinforced HDPE Conduit Pipe 25 mm, Version 1.0", "unit": "Meter"},
-    {"item_code": "ITM-005", "item_description": "GI Wire Reinforced HDPE Conduit Pipe 38 mm, Version 1.0", "unit": "Meter"},
-    {"item_code": "ITM-006", "item_description": "Installation, Commissioning & Testing of SMPS (As per Indus standard)", "unit": "Each"},
-    {"item_code": "ITM-007", "item_description": "Earthing, GI strip (25x3) mm with all installation accessories", "unit": "Meter"},
-    {"item_code": "ITM-008", "item_description": "Battery Bank, Installation Charges for Battery Bank", "unit": "Each"},
-    {"item_code": "ITM-009", "item_description": "Civil work for Battery Bank Foundation, Size of 1.5M x 1.5M", "unit": "Each"},
-    {"item_code": "ITM-010", "item_description": "Installation Charges for Mount", "unit": "Each"},
+    {"item_code": "11-312D28-0-00-09-ZZ-000", "item_description": "ACDB, Outdoor IP54, 40 KVA, 3 Phase, without SPD, Make - Sanhit"},
+    {"item_code": "11-326400-0-01-ZZ-ZZ-000", "item_description": "DCDB Kit (Outdoor) including MCBs and cables"},
+    {"item_code": "ITM-001", "item_description": "Supply & Laying of Cable,16 Sq MM,1 Core Green,Copper Unarmoured"},
+    {"item_code": "ITM-008", "item_description": "Battery Bank, Installation Charges for Battery Bank"},
+    {"item_code": "ITM-009", "item_description": "Civil work for Battery Bank Foundation, Size of 1.5M x 1.5M"},
+    {"item_code": "ITM-010", "item_description": "Installation Charges for Mount"},
 ]
 
 DEMO_TEMPLATES = [
@@ -58,11 +54,21 @@ DEMO_TEMPLATE_ITEMS = {
         {"item_code": "ITM-010", "default_qty": 1},
     ],
     "tpl-2": [
-        {"item_code": "ITM-007", "default_qty": 20},
+        {"item_code": "11-326400-0-01-ZZ-ZZ-000", "default_qty": 1},
     ],
     "tpl-3": [],
     "tpl-4": [],
 }
+
+
+def truncate_words(text, max_words: int = 60) -> str:
+    """Keep only the first `max_words` words of a description, to keep the PDF small."""
+    if not text:
+        return ""
+    words = str(text).split()
+    if len(words) <= max_words:
+        return str(text)
+    return " ".join(words[:max_words]) + "..."
 
 
 def _demo_items_lookup():
@@ -115,7 +121,7 @@ def get_sites_for_user(team_name: str) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# ITEM MASTER
+# ITEM MASTER (reads from your existing "Item Code" table)
 # ---------------------------------------------------------------------------
 def get_items() -> pd.DataFrame:
     if is_demo_mode():
@@ -123,12 +129,15 @@ def get_items() -> pd.DataFrame:
 
     client = get_supabase_client()
     resp = (
-        client.table("item_master")
-        .select("item_code, item_description, unit")
-        .order("item_code")
+        client.table("Item Code")
+        .select("item_code, item_description")
         .execute()
     )
-    return pd.DataFrame(resp.data)
+    df = pd.DataFrame(resp.data, columns=["item_code", "item_description"])
+    # Drop rows with a blank item_code (the sample data had one empty row)
+    df = df[df["item_code"].astype(str).str.strip() != ""].reset_index(drop=True)
+    df["item_description"] = df["item_description"].apply(truncate_words)
+    return df
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +153,7 @@ def get_templates() -> pd.DataFrame:
 
 
 def get_template_items(template_id: str) -> pd.DataFrame:
-    """Returns item_code, item_description, unit, default_qty for a template."""
+    """Returns item_code, item_description, default_qty for a template."""
     if is_demo_mode():
         rows = DEMO_TEMPLATE_ITEMS.get(template_id, [])
         lookup = _demo_items_lookup()
@@ -155,29 +164,25 @@ def get_template_items(template_id: str) -> pd.DataFrame:
                 {
                     "item_code": r["item_code"],
                     "item_description": item.get("item_description", ""),
-                    "unit": item.get("unit", ""),
                     "default_qty": r["default_qty"],
                 }
             )
-        return pd.DataFrame(merged, columns=["item_code", "item_description", "unit", "default_qty"])
+        return pd.DataFrame(merged, columns=["item_code", "item_description", "default_qty"])
 
     client = get_supabase_client()
     resp = (
         client.table("ground_template_items")
-        .select("item_code, default_qty, sort_order, item_master(item_description, unit)")
+        .select("item_code, default_qty, sort_order")
         .eq("template_id", template_id)
         .order("sort_order")
         .execute()
     )
-    rows = []
-    for r in resp.data:
-        item = r.get("item_master") or {}
-        rows.append(
-            {
-                "item_code": r["item_code"],
-                "item_description": item.get("item_description", ""),
-                "unit": item.get("unit", ""),
-                "default_qty": r.get("default_qty", 0),
-            }
-        )
-    return pd.DataFrame(rows, columns=["item_code", "item_description", "unit", "default_qty"])
+    template_rows = pd.DataFrame(resp.data, columns=["item_code", "default_qty", "sort_order"])
+    if template_rows.empty:
+        return pd.DataFrame(columns=["item_code", "item_description", "default_qty"])
+
+    # Join against the item master in Python (avoids relying on a DB foreign key)
+    items = get_items()
+    merged = template_rows.merge(items, on="item_code", how="left")
+    merged["item_description"] = merged["item_description"].fillna("")
+    return merged[["item_code", "item_description", "default_qty"]]
