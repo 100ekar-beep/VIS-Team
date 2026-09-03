@@ -129,20 +129,19 @@ def generate_jms_pdf(header: dict, items_df) -> bytes:
     elements.append(Spacer(1, 6 * mm))
 
     # ---- 3. Line items table (colored header, zebra body) ----------------
-    table_header = [Paragraph(h, header_cell_style) for h in ["S.No.", "Line Item", "Unit", "Qty as per site", "Remarks"]]
+    table_header = [Paragraph(h, header_cell_style) for h in ["S.No.", "Line Item", "Qty as per site", "Remarks"]]
     table_data = [table_header]
     for i, row in enumerate(items_df.itertuples(index=False), start=1):
         table_data.append(
             [
                 str(i),
                 Paragraph(str(getattr(row, "item_description", "")), cell_style),
-                getattr(row, "unit", ""),
                 f"{getattr(row, 'qty', 0):g}",
                 getattr(row, "remarks", "") or "",
             ]
         )
 
-    col_widths = [35, 250, 45, 80, 85]
+    col_widths = [35, 295, 80, 85]
     items_table = Table(table_data, colWidths=col_widths, repeatRows=1)
     items_table.setStyle(
         TableStyle(
@@ -154,7 +153,7 @@ def generate_jms_pdf(header: dict, items_df) -> bytes:
                 ("BOX", (0, 0), (-1, -1), 1, BRAND),
                 ("INNERGRID", (0, 0), (-1, -1), 0.5, BORDER),
                 ("ALIGN", (0, 0), (0, -1), "CENTER"),
-                ("ALIGN", (2, 0), (3, -1), "CENTER"),
+                ("ALIGN", (2, 0), (2, -1), "CENTER"),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
