@@ -15,7 +15,7 @@ if "jms_line_items" not in st.session_state:
 
 # ---- already logged in -----------------------------------------------------
 if st.session_state.user:
-    st.success(f"Logged in as **{st.session_state.user['full_name']}**")
+    st.success(f"Logged in as **{st.session_state.user['team_name']}**")
     st.write("👈 Use the sidebar: **My Sites** to pick a site, then **Create JMS**.")
     if st.button("Logout"):
         st.session_state.user = None
