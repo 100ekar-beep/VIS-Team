@@ -66,6 +66,13 @@ st.markdown(
         color: white !important; border: none !important; border-radius: 8px !important;
         font-weight: 800 !important;
     }
+
+    /* Mobile card view */
+    .jms-card-title { font-size: 1.02rem; font-weight: 800; color: #0f172a; margin-bottom: 6px; }
+    .jms-card-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed #e2e8f0; font-size: 0.85rem; }
+    .jms-card-row:last-child { border-bottom: none; }
+    .jms-card-label { color: #64748b; font-weight: 600; }
+    .jms-card-value { color: #1e293b; font-weight: 600; text-align: right; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -75,6 +82,9 @@ st.markdown(
     f"<h1 style='color:#0f172a;'>📋 JMS — {user['team_name']}</h1>",
     unsafe_allow_html=True,
 )
+
+if "jms_view_mode" not in st.session_state:
+    st.session_state.jms_view_mode = "table"
 
 # --- Load sites for this user (Team Name match) -----------------------------
 sites_df = get_sites_for_user(user["team_name"])
@@ -89,7 +99,15 @@ if sites_df.empty:
     )
     st.stop()
 
-search = st.text_input("🔍 Search sites", placeholder="Site ID, Site Name, ya Project ID se search karo...")
+col_search, col_toggle = st.columns([4, 1.3])
+with col_search:
+    search = st.text_input("🔍 Search sites", placeholder="Site ID, Site Name, ya Project ID se search karo...", label_visibility="collapsed")
+with col_toggle:
+    toggle_label = "📱 Mobile View" if st.session_state.jms_view_mode == "table" else "🖥️ Table View"
+    if st.button(toggle_label, use_container_width=True):
+        st.session_state.jms_view_mode = "cards" if st.session_state.jms_view_mode == "table" else "table"
+        st.rerun()
+
 filtered_df = sites_df
 if search:
     mask = sites_df.astype(str).apply(lambda col: col.str.contains(search, case=False, na=False)).any(axis=1)
@@ -234,22 +252,42 @@ def create_jms_dialog(site: dict):
         st.caption("Note: Ye PDF sirf aapke mobile/device pe save hogi — Supabase mein kuch save nahi hota.")
 
 
-# --- Sites table with a "Create JMS" action per row -------------------------
-COL_RATIOS = [0.5, 2, 1.5, 2, 1.3]
-COL_LABELS = ["#", "PROJECT ID", "SITE ID", "SITE NAME", "ACTION"]
-
-with st.container(key="jms_table_header"):
-    h_cols = st.columns(COL_RATIOS)
-    for h_col, label in zip(h_cols, COL_LABELS):
-        h_col.markdown(f"<div class='tbl-cell tbl-head'>{label}</div>", unsafe_allow_html=True)
-
-with st.container(key="jms_table_wrap"):
+# --- Sites table / cards with a "Create JMS" action per row -----------------
+if st.session_state.jms_view_mode == "cards":
+    # ---------------------------------------------------------------
+    # MOBILE CARD VIEW
+    # ---------------------------------------------------------------
     for pos, (_, row) in enumerate(filtered_df.reset_index(drop=True).iterrows()):
-        rcols = st.columns(COL_RATIOS)
-        rcols[0].markdown(f"<div class='tbl-cell tbl-serial'>{pos + 1}</div>", unsafe_allow_html=True)
-        rcols[1].markdown(f"<div class='tbl-cell'>{row.get('Project ID', '')}</div>", unsafe_allow_html=True)
-        rcols[2].markdown(f"<div class='tbl-cell'>{row.get('Site ID', '')}</div>", unsafe_allow_html=True)
-        rcols[3].markdown(f"<div class='tbl-cell'>{row.get('Site Name', '')}</div>", unsafe_allow_html=True)
-        with rcols[4]:
-            if st.button("🧾 Create JMS", key=f"create_jms_{row.get('id')}", use_container_width=True, type="primary"):
+        with st.container(border=True):
+            st.markdown(
+                f"""
+                <div class="jms-card-title">#{pos + 1} — {row.get('Site Name', '')}</div>
+                <div class="jms-card-row"><span class="jms-card-label">Site ID</span><span class="jms-card-value">{row.get('Site ID', '')}</span></div>
+                <div class="jms-card-row"><span class="jms-card-label">Project ID</span><span class="jms-card-value">{row.get('Project ID', '')}</span></div>
+                """,
+                unsafe_allow_html=True,
+            )
+            if st.button("🧾 Create JMS", key=f"create_jms_card_{row.get('id')}", use_container_width=True, type="primary"):
                 create_jms_dialog(row.to_dict())
+else:
+    # ---------------------------------------------------------------
+    # DESKTOP WIDE TABLE VIEW
+    # ---------------------------------------------------------------
+    COL_RATIOS = [0.5, 2, 1.5, 2, 1.3]
+    COL_LABELS = ["#", "PROJECT ID", "SITE ID", "SITE NAME", "ACTION"]
+
+    with st.container(key="jms_table_header"):
+        h_cols = st.columns(COL_RATIOS)
+        for h_col, label in zip(h_cols, COL_LABELS):
+            h_col.markdown(f"<div class='tbl-cell tbl-head'>{label}</div>", unsafe_allow_html=True)
+
+    with st.container(key="jms_table_wrap"):
+        for pos, (_, row) in enumerate(filtered_df.reset_index(drop=True).iterrows()):
+            rcols = st.columns(COL_RATIOS)
+            rcols[0].markdown(f"<div class='tbl-cell tbl-serial'>{pos + 1}</div>", unsafe_allow_html=True)
+            rcols[1].markdown(f"<div class='tbl-cell'>{row.get('Project ID', '')}</div>", unsafe_allow_html=True)
+            rcols[2].markdown(f"<div class='tbl-cell'>{row.get('Site ID', '')}</div>", unsafe_allow_html=True)
+            rcols[3].markdown(f"<div class='tbl-cell'>{row.get('Site Name', '')}</div>", unsafe_allow_html=True)
+            with rcols[4]:
+                if st.button("🧾 Create JMS", key=f"create_jms_{row.get('id')}", use_container_width=True, type="primary"):
+                    create_jms_dialog(row.to_dict())
