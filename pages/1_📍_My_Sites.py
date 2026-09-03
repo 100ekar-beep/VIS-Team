@@ -12,13 +12,13 @@ st.set_page_config(page_title="My Sites", page_icon="📍", layout="wide")
 user = require_login()
 
 st.title("📍 My Sites")
-st.caption(f"Sites allocated to {user['full_name']}")
+st.caption(f"Sites allocated to {user['team_name']}")
 
-sites_df = get_sites_for_user(user["full_name"])
+sites_df = get_sites_for_user(user["team_name"])
 
 if sites_df.empty:
     st.warning(
-        f"'{user['full_name']}' naam se site_data mein koi site nahi mili. "
+        f"'{user['team_name']}' naam se site_data mein koi site nahi mili. "
         "Check karo ki site_data ke 'Team Name' column mein aapka naam exactly "
         "isi spelling mein hai."
     )
