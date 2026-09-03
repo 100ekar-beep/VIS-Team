@@ -29,6 +29,9 @@ st.title("🔐 Login")
 
 if is_demo_mode():
     st.info("Demo mode: Supabase not connected yet. Use mobile **9999999999** / password **demo123**.")
+    debug_msg = st.session_state.get("_supabase_debug")
+    if debug_msg:
+        st.caption(f"🔍 Debug: {debug_msg}")
 
 with st.form("login_form"):
     mobile_number = st.text_input("Mobile Number")
