@@ -8,18 +8,15 @@ st.set_page_config(page_title="Login - JMS App", page_icon="🔐", layout="cente
 # ---- session defaults ------------------------------------------------------
 if "user" not in st.session_state:
     st.session_state.user = None
-if "selected_site" not in st.session_state:
-    st.session_state.selected_site = None
 if "jms_line_items" not in st.session_state:
     st.session_state.jms_line_items = None
 
 # ---- already logged in -----------------------------------------------------
 if st.session_state.user:
     st.success(f"Logged in as **{st.session_state.user['team_name']}**")
-    st.write("👈 Use the sidebar: **My Sites** to pick a site, then **Create JMS**.")
+    st.write("👈 Sidebar se **JMS** page pe jao — apni sites ki list dikhegi, har site ke saamne 'Create JMS' button hoga.")
     if st.button("Logout"):
         st.session_state.user = None
-        st.session_state.selected_site = None
         st.session_state.jms_line_items = None
         st.rerun()
     st.stop()
