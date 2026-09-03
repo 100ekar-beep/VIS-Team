@@ -18,7 +18,7 @@ from utils.supabase_client import get_supabase_client, is_demo_mode
 DEMO_USERS = [
     {
         "id": "demo-user-1",
-        "full_name": "Demo Field Engineer",
+        "full_name": "Pramodkumar Jaju",  # must match Team Name in DEMO_SITES below
         "mobile_number": "9999999999",
         "is_admin": False,
     }
@@ -94,22 +94,24 @@ def get_user_by_mobile(mobile_number: str):
 # ---------------------------------------------------------------------------
 # SITES
 # ---------------------------------------------------------------------------
-def get_sites_for_user(user_id: str) -> pd.DataFrame:
-    """Returns sites allocated to this user (from user_site_allocation + site_data)."""
+def get_sites_for_user(full_name: str) -> pd.DataFrame:
+    """
+    Returns sites where site_data."Team Name" matches this user's full_name.
+    (No separate allocation table needed — Team Name in site_data IS the
+    allocation, since that's how sites already get assigned to a team member.)
+    """
     if is_demo_mode():
-        return pd.DataFrame(DEMO_SITES)
+        df = pd.DataFrame(DEMO_SITES)
+        return df[df["Team Name"] == full_name].reset_index(drop=True)
 
     client = get_supabase_client()
     resp = (
-        client.table("user_site_allocation")
-        .select('site_id, site_data(id,"Project ID","Site ID","Site Name","Team Name")')
-        .eq("user_id", user_id)
+        client.table("site_data")
+        .select('id,"Project ID","Site ID","Site Name","Team Name"')
+        .eq("Team Name", full_name)
         .execute()
     )
-    rows = [r["site_data"] for r in resp.data if r.get("site_data")]
-    if not rows:
-        return pd.DataFrame(columns=["id", "Project ID", "Site ID", "Site Name", "Team Name"])
-    return pd.DataFrame(rows)
+    return pd.DataFrame(resp.data, columns=["id", "Project ID", "Site ID", "Site Name", "Team Name"])
 
 
 # ---------------------------------------------------------------------------
