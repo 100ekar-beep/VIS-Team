@@ -18,9 +18,9 @@ from utils.supabase_client import get_supabase_client, is_demo_mode
 DEMO_USERS = [
     {
         "id": "demo-user-1",
-        "full_name": "Pramodkumar Jaju",  # must match Team Name in DEMO_SITES below
+        "team_name": "Pramodkumar Jaju",  # must match Team Name in DEMO_SITES below
         "mobile_number": "9999999999",
-        "is_admin": False,
+        "user_id": "EMP-DEMO",
     }
 ]
 DEMO_PASSWORD = "demo123"  # only used in demo mode
@@ -73,17 +73,17 @@ def _demo_items_lookup():
 # USERS / AUTH DATA
 # ---------------------------------------------------------------------------
 def get_user_by_mobile(mobile_number: str):
-    """Returns the raw app_users row (incl. password_hash) or None."""
+    """Returns the raw app_users row (incl. password hash) or None."""
     if is_demo_mode():
         for u in DEMO_USERS:
             if u["mobile_number"] == mobile_number:
-                return {**u, "password_hash": None}
+                return {**u, "password": None}
         return None
 
     client = get_supabase_client()
     resp = (
         client.table("app_users")
-        .select("id, full_name, mobile_number, password_hash, is_admin")
+        .select("id, team_name, mobile_number, user_id, password")
         .eq("mobile_number", mobile_number)
         .limit(1)
         .execute()
@@ -94,21 +94,21 @@ def get_user_by_mobile(mobile_number: str):
 # ---------------------------------------------------------------------------
 # SITES
 # ---------------------------------------------------------------------------
-def get_sites_for_user(full_name: str) -> pd.DataFrame:
+def get_sites_for_user(team_name: str) -> pd.DataFrame:
     """
-    Returns sites where site_data."Team Name" matches this user's full_name.
+    Returns sites where site_data."Team Name" matches this user's team_name.
     (No separate allocation table needed — Team Name in site_data IS the
     allocation, since that's how sites already get assigned to a team member.)
     """
     if is_demo_mode():
         df = pd.DataFrame(DEMO_SITES)
-        return df[df["Team Name"] == full_name].reset_index(drop=True)
+        return df[df["Team Name"] == team_name].reset_index(drop=True)
 
     client = get_supabase_client()
     resp = (
         client.table("site_data")
         .select('id,"Project ID","Site ID","Site Name","Team Name"')
-        .eq("Team Name", full_name)
+        .eq("Team Name", team_name)
         .execute()
     )
     return pd.DataFrame(resp.data, columns=["id", "Project ID", "Site ID", "Site Name", "Team Name"])
