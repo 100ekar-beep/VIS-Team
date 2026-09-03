@@ -6,7 +6,7 @@ import streamlit as st
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from utils.guard import require_login
-from utils.data import get_items, get_sites_for_user, get_templates, get_template_items
+from utils.data import get_items, get_sites_for_user, get_templates, get_template_items, truncate_words
 from utils.pdf_generator import generate_jms_pdf
 
 st.set_page_config(page_title="JMS", page_icon="📋", layout="wide")
@@ -148,8 +148,7 @@ def create_jms_dialog(site: dict):
                 st.session_state.jms_line_items.append(
                     {
                         "item_code": r["item_code"],
-                        "item_description": r["item_description"],
-                        "unit": r["unit"],
+                        "item_description": truncate_words(r["item_description"]),
                         "qty": float(r["default_qty"]) if pd.notna(r["default_qty"]) else 0.0,
                         "remarks": "",
                     }
@@ -157,30 +156,32 @@ def create_jms_dialog(site: dict):
             st.rerun()
 
     st.markdown("**+ Add a single item**")
-    ac1, ac2, ac3 = st.columns([3, 1, 1])
-    with ac1:
-        item_choice = st.selectbox(
-            "Item",
-            options=items_master["item_code"],
-            format_func=lambda code: f"{code} — {items_master.set_index('item_code').loc[code, 'item_description']}",
-        )
-    with ac2:
-        qty_input = st.number_input("Qty", min_value=0.0, step=1.0, value=1.0, key="add_qty")
-    with ac3:
-        st.write("")
-        st.write("")
-        if st.button("+ Item", use_container_width=True):
-            row = items_master.set_index("item_code").loc[item_choice]
-            st.session_state.jms_line_items.append(
-                {
-                    "item_code": item_choice,
-                    "item_description": row["item_description"],
-                    "unit": row["unit"],
-                    "qty": qty_input,
-                    "remarks": "",
-                }
+    if items_master.empty:
+        st.warning("Item Code table mein abhi koi items nahi hai. Pehle wahan items add karo.")
+    else:
+        ac1, ac2, ac3 = st.columns([3, 1, 1])
+        with ac1:
+            item_choice = st.selectbox(
+                "Item",
+                options=items_master["item_code"],
+                format_func=lambda code: f"{code} — {items_master.set_index('item_code').loc[code, 'item_description']}",
             )
-            st.rerun()
+        with ac2:
+            qty_input = st.number_input("Qty", min_value=0.0, step=1.0, value=1.0, key="add_qty")
+        with ac3:
+            st.write("")
+            st.write("")
+            if st.button("+ Item", use_container_width=True):
+                row = items_master.set_index("item_code").loc[item_choice]
+                st.session_state.jms_line_items.append(
+                    {
+                        "item_code": item_choice,
+                        "item_description": truncate_words(row["item_description"]),
+                        "qty": qty_input,
+                        "remarks": "",
+                    }
+                )
+                st.rerun()
 
     st.divider()
     st.markdown("**Line items** (edit qty/remarks, or delete a row with the ⓧ)")
@@ -194,7 +195,6 @@ def create_jms_dialog(site: dict):
             column_config={
                 "item_code": st.column_config.TextColumn("Item Code", disabled=True),
                 "item_description": st.column_config.TextColumn("Description", disabled=True, width="large"),
-                "unit": st.column_config.TextColumn("Unit", disabled=True),
                 "qty": st.column_config.NumberColumn("Qty", min_value=0.0, step=1.0),
                 "remarks": st.column_config.TextColumn("Remarks"),
             },
@@ -203,7 +203,7 @@ def create_jms_dialog(site: dict):
         st.session_state.jms_line_items = edited_df.to_dict("records")
     else:
         st.info("Abhi koi item add nahi hua. Template load karo ya manually item add karo.")
-        edited_df = pd.DataFrame(columns=["item_code", "item_description", "unit", "qty", "remarks"])
+        edited_df = pd.DataFrame(columns=["item_code", "item_description", "qty", "remarks"])
 
     st.divider()
 
