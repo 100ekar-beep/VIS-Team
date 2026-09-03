@@ -21,15 +21,20 @@ def get_supabase_client():
     try:
         url = st.secrets["SUPABASE_URL"]
         key = st.secrets["SUPABASE_KEY"]
-    except Exception:
+    except Exception as e:
+        st.session_state["_supabase_debug"] = f"Secrets not found/readable: {e}"
         return None
 
     if not url or not key or create_client is None:
+        st.session_state["_supabase_debug"] = "URL/Key empty, or supabase package not installed."
         return None
 
     try:
-        return create_client(url, key)
-    except Exception:
+        client = create_client(url, key)
+        st.session_state["_supabase_debug"] = "Connected OK"
+        return client
+    except Exception as e:
+        st.session_state["_supabase_debug"] = f"create_client() failed: {e}"
         return None
 
 
