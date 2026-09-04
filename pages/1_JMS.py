@@ -73,6 +73,15 @@ st.markdown(
     .jms-card-row:last-child { border-bottom: none; }
     .jms-card-label { color: #64748b; font-weight: 600; }
     .jms-card-value { color: #1e293b; font-weight: 600; text-align: right; }
+
+    /* Wrap long item-code + description text inside the item selectbox's
+       open dropdown list, instead of truncating with "..." */
+    div[data-baseweb="popover"] li, div[data-baseweb="menu"] li,
+    div[data-baseweb="popover"] li > div, div[data-baseweb="menu"] li > div {
+        white-space: normal !important;
+        word-break: break-word !important;
+        line-height: 1.3 !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -121,6 +130,8 @@ if "last_jms_pdf" not in st.session_state:
     st.session_state.last_jms_pdf = None
 if "jms_open_site" not in st.session_state:
     st.session_state.jms_open_site = None
+if "jms_item_widget_gen" not in st.session_state:
+    st.session_state.jms_item_widget_gen = 0
 
 
 @st.dialog("Create JMS", width="large")
@@ -130,6 +141,7 @@ def create_jms_dialog(site: dict):
         st.session_state.jms_active_site_id = site.get("id")
         st.session_state.jms_line_items = []
         st.session_state.last_jms_pdf = None
+        st.session_state.jms_item_widget_gen += 1
 
     c1, c2, c3 = st.columns(3)
     c1.markdown(f"**Project ID**  \n{site.get('Project ID', '')}")
@@ -173,19 +185,29 @@ def create_jms_dialog(site: dict):
     if items_master.empty:
         st.warning("Item Code table mein abhi koi items nahi hai. Pehle wahan items add karo.")
     else:
-        ac1, ac2, ac3 = st.columns([3, 1, 1])
-        with ac1:
-            item_choice = st.selectbox(
-                "Item",
-                options=items_master["item_code"],
-                format_func=lambda code: f"{code} — {items_master.set_index('item_code').loc[code, 'item_description']}",
-            )
+        item_options = ["-- Search & select an item --"] + list(items_master["item_code"])
+        widget_gen = st.session_state.jms_item_widget_gen
+
+        item_choice = st.selectbox(
+            "Item",
+            options=item_options,
+            index=0,
+            format_func=lambda code: code if code == "-- Search & select an item --"
+            else f"{code} — {items_master.set_index('item_code').loc[code, 'item_description']}",
+            key=f"item_select_{widget_gen}",
+        )
+
+        ac2, ac3 = st.columns([1, 1])
         with ac2:
-            qty_input = st.number_input("Qty", min_value=0.0, step=1.0, value=None, placeholder="0", key="add_qty")
+            qty_input = st.number_input(
+                "Qty", min_value=0.0, step=1.0, value=None, placeholder="0",
+                key=f"add_qty_{widget_gen}",
+            )
         with ac3:
             st.write("")
             st.write("")
-            if st.button("Add in JMS", use_container_width=True):
+            add_disabled = item_choice == "-- Search & select an item --"
+            if st.button("Add in JMS", use_container_width=True, disabled=add_disabled):
                 row = items_master.set_index("item_code").loc[item_choice]
                 st.session_state.jms_line_items.append(
                     {
@@ -195,6 +217,10 @@ def create_jms_dialog(site: dict):
                         "remarks": "",
                     }
                 )
+                # Bump the widget "generation" so the item + qty boxes render
+                # as fresh/blank widgets on the next run, ready for the next
+                # item — instead of keeping the just-added item selected.
+                st.session_state.jms_item_widget_gen += 1
                 st.rerun()
 
     st.divider()
