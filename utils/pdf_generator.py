@@ -5,7 +5,7 @@ Generates the JMS PDF:
   |            VISIONTECH INFRA SOLUTIONS (letterhead)        |
   |               Joint Measurement Sheet                     |
   |------------------------------------------------------------|
-  |  Circle: ...              | Site ID :- ...                 |
+  |  Circle:- ...              | Site ID :- ...                 |
   |  Site Name :- ...         | Project ID :- ...               |
   |------------------------------------------------------------|
   |  S.No | Item Code | Item Description | Qty as per site | Remarks |
