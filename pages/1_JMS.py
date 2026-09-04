@@ -137,13 +137,7 @@ def create_jms_dialog(site: dict):
     c3.markdown(f"**Site Name**  \n{site.get('Site Name', '')}")
     st.divider()
 
-    hc1, hc2 = st.columns(2)
-    with hc1:
-        circle = st.text_input("Circle", value="Maharashtra", key="jms_circle")
-        supervisor = st.text_input("Partner Supervisor Name", value=user["team_name"], key="jms_supervisor")
-    with hc2:
-        engineer = st.text_input("Audit Engineer Name", value="", key="jms_engineer")
-        agency = st.text_input("Agency Name", value=site.get("Team Name", ""), key="jms_agency")
+    circle = st.text_input("Circle", value="Maharashtra", key="jms_circle")
 
     st.divider()
 
@@ -234,9 +228,6 @@ def create_jms_dialog(site: dict):
             "site_id": site.get("Site ID", ""),
             "site_name": site.get("Site Name", ""),
             "project_id": site.get("Project ID", ""),
-            "partner_supervisor_name": supervisor,
-            "audit_engineer_name": engineer,
-            "agency_name": agency,
         }
         pdf_bytes = generate_jms_pdf(header, edited_df)
         st.session_state["last_jms_pdf"] = pdf_bytes
