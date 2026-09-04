@@ -262,16 +262,17 @@ if st.session_state.get('keep_search_active'):
             return val if val and val != "None" and val != "nan" else "-"
 
         message_text = (
-            f"*Site Detail*\n"
-            f"Site Name: {clean_val(site_name_val)}\n"
-            f"Site ID: {clean_val(site_id_val)}\n"
-            f"District/Area: {clean_val(district_val)}\n"
-            f"Cluster: {clean_val(cluster_val)}\n"
-            f"Lat/Long: {clean_val(lat_long_spaced)}\n"
-            f"Technician: {clean_val(tech_full)}\n"
-            f"FSE: {clean_val(fse_full)}\n"
-            f"AOM: {clean_val(aom_full)}\n"
-            f"Location: {clean_val(maps_link)}"
+            f"*नमस्कार*\n\n"
+            f"*Site Name* : {clean_val(site_name_val)}\n"
+            f"*Site ID* :- {clean_val(site_id_val)}\n"
+            f"*District/Area* : {clean_val(district_val)}\n"
+            f"*Cluster* : {clean_val(cluster_val)}\n"
+            f"*Lat/Long* : {clean_val(lat_long_spaced)}\n\n"
+            f"*Technician Detail* :- {clean_val(tech_full)}\n"
+            f"*FSE Detail* :- {clean_val(fse_full)}\n"
+            f"*AOM Detail* :- {clean_val(aom_full)}\n\n"
+            f"*साईट ची लिंक* :-\n"
+            f" {clean_val(maps_link)}"
         )
         # No phone number in the link -> WhatsApp opens and lets the user
         # pick which contact/chat to send it to themselves.
