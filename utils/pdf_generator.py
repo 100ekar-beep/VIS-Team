@@ -1,26 +1,25 @@
 """
-Generates the JMS PDF with 2 large signature boxes always anchored to the
-bottom of the page (regardless of how many item rows there are — leftover
-space between the table and the boxes is left blank so an auditor can
-write in missed items by hand):
+Generates the JMS PDF:
 
-  VISIONTECH INFRA SOLUTIONS - JMS
-  +--------------------------------------------+
-  | Circle: ...            | Site ID :- ...     |
-  | Site Name :- ...       | Project ID :- ...  |
-  +--------------------------------------------+
+  +==========================================================+
+  |            VISIONTECH INFRA SOLUTIONS (letterhead)        |
+  |               Joint Measurement Sheet                     |
+  |------------------------------------------------------------|
+  |  Circle: ...              | Site ID :- ...                 |
+  |  Site Name :- ...         | Project ID :- ...               |
+  |------------------------------------------------------------|
+  |  S.No | Item Code | Item Description | Qty as per site | Remarks |
+  |  ... rows ...                                               |
+  |                                                              |
+  |  +-------------------------+  +-------------------------+   |
+  |  | TSP Partner Name :      |  | Auditor Name :-          |  |
+  |  | Visiontech Infra Sol.   |  | Audit Agency :-          |  |
+  |  +-------------------------+  +-------------------------+   |
+  +==========================================================+
 
-  S.No | Item Code | Item Description | Qty as per site | Remarks
-  ... (rows) ...
-
-                  (blank space if table is short)
-
-  +-------------------------+  +-------------------------+
-  |                         |  |                         |
-  |                         |  |                         |
-  | TSP Partner Name :      |  | Auditor Name :-         |
-  | Visiontech Infra Sol.   |  | Audit Agency :-         |
-  +-------------------------+  +-------------------------+
+The whole page has a thin border. Signature boxes are always anchored to
+the bottom of the page — leftover space above them is left blank so an
+auditor can write in missed items by hand.
 """
 
 import io
@@ -33,11 +32,17 @@ from reportlab.pdfgen import canvas as pdfcanvas
 from reportlab.platypus import Table, TableStyle, Paragraph
 
 PAGE_W, PAGE_H = A4
-MARGIN = 14 * mm
+
+PAGE_BORDER = 7 * mm                     # thin border around the whole page
+MARGIN = 14 * mm                         # content margin (text/tables)
 CONTENT_W = PAGE_W - 2 * MARGIN
 
-BOX_AREA_HEIGHT = 65 * mm   # big signature boxes, anchored to page bottom
+LETTERHEAD_H = 24 * mm
+BOX_AREA_HEIGHT = 45 * mm                # signature boxes (~30% shorter than before)
 BOX_GAP = 8 * mm
+
+BRAND = colors.HexColor("#3730a3")       # deep indigo
+ACCENT = colors.HexColor("#f59e0b")      # gold accent stripe
 
 
 def generate_jms_pdf(header: dict, items_df) -> bytes:
@@ -60,13 +65,32 @@ def generate_jms_pdf(header: dict, items_df) -> bytes:
     def val(text):
         return Paragraph(str(text) if text not in (None, "") else "&nbsp;", value_style)
 
-    def draw_title(y):
-        c.setFont("Helvetica-Bold", 15)
-        c.drawCentredString(PAGE_W / 2, y, "VISIONTECH INFRA SOLUTIONS - JMS")
-        y -= 5 * mm
-        c.setLineWidth(1)
-        c.line(MARGIN, y, PAGE_W - MARGIN, y)
-        return y - 6 * mm
+    def draw_page_border():
+        c.setLineWidth(1.2)
+        c.setStrokeColor(colors.black)
+        c.rect(PAGE_BORDER, PAGE_BORDER, PAGE_W - 2 * PAGE_BORDER, PAGE_H - 2 * PAGE_BORDER)
+
+    def draw_letterhead():
+        """Lavish colored letterhead band with the company name + subtitle."""
+        band_x = PAGE_BORDER
+        band_w = PAGE_W - 2 * PAGE_BORDER
+        band_top = PAGE_H - PAGE_BORDER
+        band_bottom = band_top - LETTERHEAD_H
+
+        c.setFillColor(BRAND)
+        c.rect(band_x, band_bottom, band_w, LETTERHEAD_H, stroke=0, fill=1)
+        # gold accent stripe under the band
+        c.setFillColor(ACCENT)
+        c.rect(band_x, band_bottom, band_w, 1.6 * mm, stroke=0, fill=1)
+
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 19)
+        c.drawCentredString(PAGE_W / 2, band_top - 11 * mm, "VISIONTECH INFRA SOLUTIONS")
+        c.setFont("Helvetica", 11)
+        c.drawCentredString(PAGE_W / 2, band_top - 18 * mm, "Joint Measurement Sheet")
+
+        c.setFillColor(colors.black)
+        return band_bottom - 7 * mm
 
     def draw_site_box(y):
         """Bordered box, full content width, 2x2 grid: Circle/Site ID, Site Name/Project ID."""
@@ -74,7 +98,7 @@ def generate_jms_pdf(header: dict, items_df) -> bytes:
             [lbl("Circle:"), val(header.get("circle", "")), lbl("Site ID :-"), val(header.get("site_id", ""))],
             [lbl("Site Name :-"), val(header.get("site_name", "")), lbl("Project ID :-"), val(header.get("project_id", ""))],
         ]
-        col_w = [62, CONTENT_W / 2 - 62, 65, CONTENT_W / 2 - 65]
+        col_w = [78, CONTENT_W / 2 - 78, 80, CONTENT_W / 2 - 80]
         t = Table(rows, colWidths=col_w)
         t.setStyle(
             TableStyle(
@@ -128,7 +152,7 @@ def generate_jms_pdf(header: dict, items_df) -> bytes:
         return y - th
 
     def draw_signature_boxes():
-        """2 large boxes, side by side, anchored to the bottom margin of the page."""
+        """2 boxes, side by side, anchored to the bottom margin of the page."""
         box_w = (CONTENT_W - BOX_GAP) / 2
         box_bottom = MARGIN
         box_top = MARGIN + BOX_AREA_HEIGHT
@@ -137,10 +161,10 @@ def generate_jms_pdf(header: dict, items_df) -> bytes:
         right_x = MARGIN + box_w + BOX_GAP
 
         c.setLineWidth(1)
+        c.setStrokeColor(colors.black)
         c.rect(left_x, box_bottom, box_w, BOX_AREA_HEIGHT)
         c.rect(right_x, box_bottom, box_w, BOX_AREA_HEIGHT)
 
-        # --- Box 1 (left): TSP Partner Name, text anchored near the bottom ---
         text_pad = 6 * mm
         line1_y = box_bottom + 13 * mm
         line2_y = box_bottom + 6 * mm
@@ -149,16 +173,15 @@ def generate_jms_pdf(header: dict, items_df) -> bytes:
         c.setFont("Helvetica", 9.5)
         c.drawString(left_x + text_pad, line2_y, header.get("tsp_partner", "Visiontech Infra Solutions"))
 
-        # --- Box 2 (right): Auditor Name / Audit Agency, blank for handwriting ---
         c.setFont("Helvetica-Bold", 9.5)
         c.drawString(right_x + text_pad, line1_y, "Auditor Name :-")
         c.drawString(right_x + text_pad, line2_y, "Audit Agency :-")
 
         return box_top
 
-    # ---- Page 1: title, site box, items table ------------------------------
-    y = PAGE_H - MARGIN
-    y = draw_title(y)
+    # ---- Page 1: border, letterhead, site box, items table -----------------
+    draw_page_border()
+    y = draw_letterhead()
     y = draw_site_box(y)
     y_after_table = draw_items_table(y)
 
@@ -168,6 +191,7 @@ def generate_jms_pdf(header: dict, items_df) -> bytes:
         # Items table ran into the reserved bottom-box area — put the
         # signature boxes on a fresh page instead of overlapping them.
         c.showPage()
+        draw_page_border()
 
     draw_signature_boxes()
 
