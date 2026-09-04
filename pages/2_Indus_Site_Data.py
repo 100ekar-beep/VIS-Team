@@ -1,9 +1,10 @@
 import sys
 from pathlib import Path
+import urllib.parse
 
 import streamlit as st
 import pandas as pd
-import requests  # API Call ke liye
+import requests  # dropdown_master fallback fetch ke liye
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from utils.guard import require_login
@@ -29,15 +30,6 @@ if supabase is None:
         "bina kaam nahi karega — Settings → Secrets mein SUPABASE_URL / SUPABASE_KEY daalo."
     )
     st.stop()
-
-# WhatsApp (Interakt) API key — reads from secrets if you add INTERAKT_API_KEY
-# there; otherwise falls back to the key that was already in the original page.
-# Recommended: move this fully into st.secrets and rotate the key, since it
-# will otherwise sit in plain text inside your GitHub repo.
-INTERAKT_API_KEY = st.secrets.get(
-    "INTERAKT_API_KEY",
-    "S2pFcE5ETjE2NDhiQ1VIMEFjMVA5a3ZwdHB6X0diYXpRM2I2SWRxbGJWYzo=",
-)
 
 # --- 3. LAVISH CUSTOM CSS ---
 st.markdown("""
@@ -276,61 +268,47 @@ if st.session_state.get('keep_search_active'):
         with t_col2:
             # Specific Container Key for WhatsApp Button CSS Styling
             with st.container(key="wa_send_btn"):
-                if st.button("💬 Send Message to Team", use_container_width=True):
-                    if sel_team == "-- Select Team --" or sel_team == "-- No Teams Found in Database --":
-                        st.warning("⚠️ Please select a valid team first!")
+                if sel_team == "-- Select Team --" or sel_team == "-- No Teams Found in Database --":
+                    st.button("💬 Send Message to Team", use_container_width=True, disabled=True)
+                else:
+                    mob = team_dict.get(sel_team, "")
+                    if not mob or str(mob).strip().upper() == "EMPTY" or str(mob).strip() == "NAN":
+                        st.error(f"⚠️ Mobile number not found for '{sel_team}' in database.")
                     else:
-                        mob = team_dict.get(sel_team, "")
-                        if not mob or str(mob).strip().upper() == "EMPTY" or str(mob).strip() == "NAN":
-                            st.error(f"⚠️ Mobile number not found for '{sel_team}' in database.")
+                        clean_mob = str(mob).replace("+91", "").replace(" ", "").strip()
+                        if len(clean_mob) >= 10:
+                            # --- Simple WhatsApp share link: opens WhatsApp on the
+                            # team member's OWN phone/browser with the message
+                            # pre-filled — they press Send themselves. No API/key
+                            # needed at all. ---
+                            def clean_val(v):
+                                val = str(v).strip()
+                                return val if val and val != "None" and val != "nan" else "-"
+
+                            message_text = (
+                                f"*Site Detail*\n"
+                                f"Team: {clean_val(sel_team)}\n"
+                                f"Site Name: {clean_val(site_name_val)}\n"
+                                f"Site ID: {clean_val(site_id_val)}\n"
+                                f"District/Area: {clean_val(district_val)}\n"
+                                f"Cluster: {clean_val(cluster_val)}\n"
+                                f"Lat/Long: {clean_val(lat_long_spaced)}\n"
+                                f"Technician: {clean_val(tech_full)}\n"
+                                f"FSE: {clean_val(fse_full)}\n"
+                                f"AOM: {clean_val(aom_full)}\n"
+                                f"Location: {clean_val(maps_link)}"
+                            )
+                            wa_link = f"https://wa.me/91{clean_mob}?text={urllib.parse.quote(message_text)}"
+                            st.markdown(
+                                f'<a href="{wa_link}" target="_blank" style="text-decoration:none;">'
+                                f'<button style="width:100%; background:linear-gradient(90deg,#25D366 0%,#128C7E 100%);'
+                                f'color:white;border:2px solid #128C7E;border-radius:8px;font-weight:800;'
+                                f'padding:0.6rem 1.2rem;cursor:pointer;box-shadow:0 4px 10px rgba(37,211,102,0.4);">'
+                                f'💬 Send Message to Team</button></a>',
+                                unsafe_allow_html=True,
+                            )
                         else:
-                            clean_mob = str(mob).replace("+91", "").replace(" ", "").strip()
-                            if len(clean_mob) >= 10:
-                                # --- INTERAKT API LOGIC ---
-                                url = "https://api.interakt.ai/v1/public/message/"
-                                headers = {
-                                    "Authorization": f"Basic {INTERAKT_API_KEY}",
-                                    "Content-Type": "application/json"
-                                }
-                                
-                                def clean_val(v):
-                                    val = str(v).strip()
-                                    return val if val and val != "None" and val != "nan" else "-"
-                                
-                                payload = {
-                                    "countryCode": "+91",
-                                    "phoneNumber": clean_mob,
-                                    "callbackData": "site_detail_event",
-                                    "type": "Template",
-                                    "template": {
-                                        "name": "site_detail",
-                                        "languageCode": "mr",
-                                        "headerValues": [],
-                                        "bodyValues": [
-                                            clean_val(sel_team),      # {{1}} Team Name
-                                            clean_val(site_name_val), # {{2}} Site Name
-                                            clean_val(site_id_val),   # {{3}} Indus ID
-                                            clean_val(district_val),  # {{4}} District / Area
-                                            clean_val(cluster_val),   # {{5}} Cluster
-                                            clean_val(lat_long_spaced),# {{6}} Lat Long (2 space)
-                                            clean_val(tech_full),     # {{7}} Technician Detail
-                                            clean_val(fse_full),      # {{8}} FSE Detail
-                                            clean_val(aom_full),      # {{9}} AOM Detail
-                                            clean_val(maps_link)      # {{10}} Google Location Link
-                                        ]
-                                    }
-                                }
-                                
-                                try:
-                                    response = requests.post(url, headers=headers, json=payload)
-                                    if response.status_code in [200, 201, 202]:
-                                        st.success(f"✅ Message sent to {sel_team} ({clean_mob}) successfully!")
-                                    else:
-                                        st.error(f"⚠️ WhatsApp API Error: {response.text}")
-                                except Exception as e:
-                                    st.error(f"⚠️ Request Failed: {e}")
-                            else:
-                                st.error(f"⚠️ Invalid Mobile Number: {clean_mob}")
+                            st.error(f"⚠️ Invalid Mobile Number: {clean_mob}")
             
         st.divider()
 
