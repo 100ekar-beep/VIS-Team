@@ -215,6 +215,13 @@ def create_jms_dialog(site: dict):
             key=f"item_select_{widget_gen}",
         )
 
+        # The dropdown list itself can't reliably word-wrap (Streamlit
+        # virtualizes it with fixed-height rows), so show the FULL
+        # description here instead, for confirmation before adding.
+        if item_choice != "-- Search & select an item --":
+            full_desc = items_master.set_index("item_code").loc[item_choice, "item_description"]
+            st.info(f"📄 **{item_choice}**\n\n{full_desc}")
+
         ac2, ac3 = st.columns([1, 1])
         with ac2:
             qty_input = st.number_input(
