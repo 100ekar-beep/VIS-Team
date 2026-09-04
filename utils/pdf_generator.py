@@ -5,7 +5,7 @@ Generates the JMS PDF:
   |            VISIONTECH INFRA SOLUTIONS (letterhead)        |
   |               Joint Measurement Sheet                     |
   |------------------------------------------------------------|
-  |  Circle:- ...              | Site ID :- ...                 |
+  |  Circle: ...              | Site ID :- ...                 |
   |  Site Name :- ...         | Project ID :- ...               |
   |------------------------------------------------------------|
   |  S.No | Item Code | Item Description | Qty as per site | Remarks |
@@ -71,25 +71,26 @@ def generate_jms_pdf(header: dict, items_df) -> bytes:
         c.rect(PAGE_BORDER, PAGE_BORDER, PAGE_W - 2 * PAGE_BORDER, PAGE_H - 2 * PAGE_BORDER)
 
     def draw_letterhead():
-        """Lavish colored letterhead band with the company name + subtitle."""
+        """Plain (no color fill) letterhead — colorful TEXT only, so it still
+        prints cleanly in black & white (a filled color band looks muddy/dark
+        when printed on a B&W printer)."""
         band_x = PAGE_BORDER
         band_w = PAGE_W - 2 * PAGE_BORDER
         band_top = PAGE_H - PAGE_BORDER
         band_bottom = band_top - LETTERHEAD_H
 
         c.setFillColor(BRAND)
-        c.rect(band_x, band_bottom, band_w, LETTERHEAD_H, stroke=0, fill=1)
-        # gold accent stripe under the band
-        c.setFillColor(ACCENT)
-        c.rect(band_x, band_bottom, band_w, 1.6 * mm, stroke=0, fill=1)
-
-        c.setFillColor(colors.white)
         c.setFont("Helvetica-Bold", 19)
         c.drawCentredString(PAGE_W / 2, band_top - 11 * mm, "VISIONTECH INFRA SOLUTIONS")
+        c.setFillColor(colors.HexColor("#475569"))
         c.setFont("Helvetica", 11)
         c.drawCentredString(PAGE_W / 2, band_top - 18 * mm, "Joint Measurement Sheet")
 
         c.setFillColor(colors.black)
+        c.setStrokeColor(colors.black)
+        c.setLineWidth(1)
+        c.line(band_x, band_bottom, band_x + band_w, band_bottom)
+
         return band_bottom - 7 * mm
 
     def draw_site_box(y):
@@ -117,7 +118,7 @@ def generate_jms_pdf(header: dict, items_df) -> bytes:
         t.drawOn(c, MARGIN, y - th)
         return y - th - 7 * mm
 
-    def draw_items_table(y):
+    def draw_items_table(y, box_top_needed):
         table_header = [Paragraph(h, header_cell_style) for h in ["S.No.", "Item Code", "Item Description", "Qty as per site", "Remarks"]]
         table_data = [table_header]
         for i, row in enumerate(items_df.itertuples(index=False), start=1):
@@ -130,23 +131,52 @@ def generate_jms_pdf(header: dict, items_df) -> bytes:
                     getattr(row, "remarks", "") or "",
                 ]
             )
-        col_widths = [38, 88, CONTENT_W - 38 - 88 - 65 - 61, 65, 61]
-        t = Table(table_data, colWidths=col_widths)
-        t.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e5e7eb")),
-                    ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
-                    ("ALIGN", (0, 0), (0, -1), "CENTER"),
-                    ("ALIGN", (3, 0), (3, -1), "CENTER"),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ]
-            )
+
+        # S.No | Item Code | Item Description (narrower) | Qty (narrower) | Remarks (doubled)
+        remarks_w = 122
+        qty_w = 45
+        item_code_w = 88
+        sno_w = 38
+        desc_w = CONTENT_W - sno_w - item_code_w - qty_w - remarks_w
+        col_widths = [sno_w, item_code_w, desc_w, qty_w, remarks_w]
+
+        base_style = TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e5e7eb")),
+                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+                ("ALIGN", (0, 0), (0, -1), "CENTER"),
+                ("ALIGN", (3, 0), (3, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
         )
+
+        # --- Measure the natural height of the real rows first ---
+        t_measure = Table(table_data, colWidths=col_widths)
+        t_measure.setStyle(base_style)
+        t_measure.wrapOn(c, CONTENT_W, y)
+        real_row_heights = list(t_measure._rowHeights)
+        used_height = sum(real_row_heights)
+
+        # --- Fill the remaining space down to the signature boxes with
+        #     blank rows, so the grid visually continues all the way down
+        #     (even if those rows stay empty) instead of leaving white space.
+        available_height = y - box_top_needed
+        blank_row_h = 9 * mm
+        remaining = available_height - used_height
+        num_blank = max(0, int(remaining // blank_row_h))
+
+        if num_blank > 0:
+            table_data = table_data + [["", "", "", "", ""] for _ in range(num_blank)]
+            row_heights = real_row_heights + [blank_row_h] * num_blank
+        else:
+            row_heights = None  # let it size naturally
+
+        t = Table(table_data, colWidths=col_widths, rowHeights=row_heights)
+        t.setStyle(base_style)
         tw, th = t.wrapOn(c, CONTENT_W, y)
         t.drawOn(c, MARGIN, y - th)
         return y - th
@@ -183,9 +213,9 @@ def generate_jms_pdf(header: dict, items_df) -> bytes:
     draw_page_border()
     y = draw_letterhead()
     y = draw_site_box(y)
-    y_after_table = draw_items_table(y)
 
     box_top_needed = MARGIN + BOX_AREA_HEIGHT + 6 * mm
+    y_after_table = draw_items_table(y, box_top_needed)
 
     if y_after_table < box_top_needed:
         # Items table ran into the reserved bottom-box area — put the
