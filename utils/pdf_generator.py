@@ -5,7 +5,7 @@ Generates the JMS PDF:
   |            VISIONTECH INFRA SOLUTIONS (letterhead)        |
   |               Joint Measurement Sheet                     |
   |------------------------------------------------------------|
-  |  Circle :- ...              | Site ID :- ...                 |
+  |  Circle: ...              | Site ID :- ...                 |
   |  Site Name :- ...         | Project ID :- ...               |
   |------------------------------------------------------------|
   |  S.No | Item Code | Item Description | Qty as per site | Remarks |
@@ -96,7 +96,7 @@ def generate_jms_pdf(header: dict, items_df) -> bytes:
     def draw_site_box(y):
         """Bordered box, full content width, 2x2 grid: Circle/Site ID, Site Name/Project ID."""
         rows = [
-            [lbl("Circle:"), val(header.get("circle", "")), lbl("Site ID :-"), val(header.get("site_id", ""))],
+            [lbl("Circle :-"), val(header.get("circle", "")), lbl("Site ID :-"), val(header.get("site_id", ""))],
             [lbl("Site Name :-"), val(header.get("site_name", "")), lbl("Project ID :-"), val(header.get("project_id", ""))],
         ]
         col_w = [78, CONTENT_W / 2 - 78, 80, CONTENT_W / 2 - 80]
