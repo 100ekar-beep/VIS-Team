@@ -75,12 +75,30 @@ st.markdown(
     .jms-card-value { color: #1e293b; font-weight: 600; text-align: right; }
 
     /* Wrap long item-code + description text inside the item selectbox's
-       open dropdown list, instead of truncating with "..." */
-    div[data-baseweb="popover"] li, div[data-baseweb="menu"] li,
-    div[data-baseweb="popover"] li > div, div[data-baseweb="menu"] li > div {
+       open dropdown list, instead of truncating/clipping it. Multiple
+       selector patterns are used since Streamlit's internal BaseWeb class
+       names can vary slightly between versions. */
+    [data-testid="stSelectboxVirtualDropdown"] li,
+    [data-testid="stSelectboxVirtualDropdown"] li > div,
+    [data-testid="stSelectboxVirtualDropdown"] li div,
+    div[data-baseweb="popover"] li,
+    div[data-baseweb="popover"] li > div,
+    div[data-baseweb="menu"] li,
+    div[data-baseweb="menu"] li > div,
+    ul[role="listbox"] li,
+    ul[role="listbox"] li > div,
+    li[role="option"],
+    li[role="option"] > div,
+    li[role="option"] div {
         white-space: normal !important;
         word-break: break-word !important;
-        line-height: 1.3 !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+        height: auto !important;
+        min-height: auto !important;
+        line-height: 1.35 !important;
+        padding-top: 8px !important;
+        padding-bottom: 8px !important;
     }
     </style>
     """,
@@ -93,7 +111,7 @@ st.markdown(
 )
 
 if "jms_view_mode" not in st.session_state:
-    st.session_state.jms_view_mode = "table"
+    st.session_state.jms_view_mode = "cards"
 
 # --- Load sites for this user (Team Name match) -----------------------------
 sites_df = get_sites_for_user(user["team_name"])
