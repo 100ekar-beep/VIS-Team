@@ -224,11 +224,10 @@ if st.session_state.get('keep_search_active'):
         st.dataframe(df_ind, use_container_width=True, hide_index=True)
         st.divider()
         
-        # --- NEW LOGIC: Team Dropdown & WhatsApp Button Immediately after Table ---
-        st.markdown("### 💬 Assign Team & Send WhatsApp")
-        
-        # --- 100% BULLETPROOF DROPDOWN MASTER FETCHING (cached) ---
-        team_dict = fetch_team_dropdown_cached()
+        # --- WhatsApp share button: opens WhatsApp on the user's own phone
+        # with the message pre-filled — they pick who to send it to themselves
+        # (no team dropdown / no stored mobile number needed at all). ---
+        st.markdown("### 💬 Share Site Detail on WhatsApp")
             
         row_in = res_data[0]
         
@@ -257,58 +256,36 @@ if st.session_state.get('keep_search_active'):
         # Variables for WhatsApp Template (2 spaces exactly between lat and long)
         lat_long_spaced = f"{lat}  {lon}" if lat and lon else "N/A"
         maps_link = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}" if lat and lon else "N/A"
-        
-        t_col1, t_col2 = st.columns([3, 2])
-        
-        if not team_dict:
-            sel_team = t_col1.selectbox("Select Team", ["-- No Teams Found in Database --"], label_visibility="collapsed")
-        else:
-            sel_team = t_col1.selectbox("Select Team", ["-- Select Team --"] + list(team_dict.keys()), label_visibility="collapsed")
-        
-        with t_col2:
-            # Specific Container Key for WhatsApp Button CSS Styling
-            with st.container(key="wa_send_btn"):
-                if sel_team == "-- Select Team --" or sel_team == "-- No Teams Found in Database --":
-                    st.button("💬 Send Message to Team", use_container_width=True, disabled=True)
-                else:
-                    mob = team_dict.get(sel_team, "")
-                    if not mob or str(mob).strip().upper() == "EMPTY" or str(mob).strip() == "NAN":
-                        st.error(f"⚠️ Mobile number not found for '{sel_team}' in database.")
-                    else:
-                        clean_mob = str(mob).replace("+91", "").replace(" ", "").strip()
-                        if len(clean_mob) >= 10:
-                            # --- Simple WhatsApp share link: opens WhatsApp on the
-                            # team member's OWN phone/browser with the message
-                            # pre-filled — they press Send themselves. No API/key
-                            # needed at all. ---
-                            def clean_val(v):
-                                val = str(v).strip()
-                                return val if val and val != "None" and val != "nan" else "-"
 
-                            message_text = (
-                                f"*Site Detail*\n"
-                                f"Team: {clean_val(sel_team)}\n"
-                                f"Site Name: {clean_val(site_name_val)}\n"
-                                f"Site ID: {clean_val(site_id_val)}\n"
-                                f"District/Area: {clean_val(district_val)}\n"
-                                f"Cluster: {clean_val(cluster_val)}\n"
-                                f"Lat/Long: {clean_val(lat_long_spaced)}\n"
-                                f"Technician: {clean_val(tech_full)}\n"
-                                f"FSE: {clean_val(fse_full)}\n"
-                                f"AOM: {clean_val(aom_full)}\n"
-                                f"Location: {clean_val(maps_link)}"
-                            )
-                            wa_link = f"https://wa.me/91{clean_mob}?text={urllib.parse.quote(message_text)}"
-                            st.markdown(
-                                f'<a href="{wa_link}" target="_blank" style="text-decoration:none;">'
-                                f'<button style="width:100%; background:linear-gradient(90deg,#25D366 0%,#128C7E 100%);'
-                                f'color:white;border:2px solid #128C7E;border-radius:8px;font-weight:800;'
-                                f'padding:0.6rem 1.2rem;cursor:pointer;box-shadow:0 4px 10px rgba(37,211,102,0.4);">'
-                                f'💬 Send Message to Team</button></a>',
-                                unsafe_allow_html=True,
-                            )
-                        else:
-                            st.error(f"⚠️ Invalid Mobile Number: {clean_mob}")
+        def clean_val(v):
+            val = str(v).strip()
+            return val if val and val != "None" and val != "nan" else "-"
+
+        message_text = (
+            f"*Site Detail*\n"
+            f"Site Name: {clean_val(site_name_val)}\n"
+            f"Site ID: {clean_val(site_id_val)}\n"
+            f"District/Area: {clean_val(district_val)}\n"
+            f"Cluster: {clean_val(cluster_val)}\n"
+            f"Lat/Long: {clean_val(lat_long_spaced)}\n"
+            f"Technician: {clean_val(tech_full)}\n"
+            f"FSE: {clean_val(fse_full)}\n"
+            f"AOM: {clean_val(aom_full)}\n"
+            f"Location: {clean_val(maps_link)}"
+        )
+        # No phone number in the link -> WhatsApp opens and lets the user
+        # pick which contact/chat to send it to themselves.
+        wa_link = f"https://wa.me/?text={urllib.parse.quote(message_text)}"
+
+        with st.container(key="wa_send_btn"):
+            st.markdown(
+                f'<a href="{wa_link}" target="_blank" style="text-decoration:none;">'
+                f'<button style="width:100%; background:linear-gradient(90deg,#25D366 0%,#128C7E 100%);'
+                f'color:white;border:2px solid #128C7E;border-radius:8px;font-weight:800;'
+                f'padding:0.6rem 1.2rem;cursor:pointer;box-shadow:0 4px 10px rgba(37,211,102,0.4);">'
+                f'💬 Send on WhatsApp</button></a>',
+                unsafe_allow_html=True,
+            )
             
         st.divider()
 
