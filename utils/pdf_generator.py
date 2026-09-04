@@ -1,19 +1,26 @@
 """
-Generates a plain, minimal Joint Measurement Sheet (JMS) PDF matching the
-company's standard format:
+Generates the JMS PDF with 2 large signature boxes always anchored to the
+bottom of the page (regardless of how many item rows there are — leftover
+space between the table and the boxes is left blank so an auditor can
+write in missed items by hand):
 
   VISIONTECH INFRA SOLUTIONS - JMS
-
-  Circle: ...
-  TSP Partner :- ...          Site ID :- ...
-  Site Name :- ...            Project ID :- ...
+  +--------------------------------------------+
+  | Circle: ...            | Site ID :- ...     |
+  | Site Name :- ...       | Project ID :- ...  |
+  +--------------------------------------------+
 
   S.No | Item Code | Item Description | Qty as per site | Remarks
+  ... (rows) ...
 
-  Partner Supervisor Name :- ...      Audit Engineer Name :- ...
-  [ signature box ]                   [ signature box ]
-  TSP Partner Name : ...              Agency Name : ...
-  [ signature box ]                   [ signature box ]
+                  (blank space if table is short)
+
+  +-------------------------+  +-------------------------+
+  |                         |  |                         |
+  |                         |  |                         |
+  | TSP Partner Name :      |  | Auditor Name :-         |
+  | Visiontech Infra Sol.   |  | Audit Agency :-         |
+  +-------------------------+  +-------------------------+
 """
 
 import io
@@ -22,38 +29,30 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import (
-    SimpleDocTemplate,
-    Table,
-    TableStyle,
-    Paragraph,
-    Spacer,
-)
+from reportlab.pdfgen import canvas as pdfcanvas
+from reportlab.platypus import Table, TableStyle, Paragraph
+
+PAGE_W, PAGE_H = A4
+MARGIN = 14 * mm
+CONTENT_W = PAGE_W - 2 * MARGIN
+
+BOX_AREA_HEIGHT = 65 * mm   # big signature boxes, anchored to page bottom
+BOX_GAP = 8 * mm
 
 
 def generate_jms_pdf(header: dict, items_df) -> bytes:
     """
-    header keys: circle, tsp_partner, site_id, site_name, project_id,
-                 partner_supervisor_name, audit_engineer_name, agency_name
+    header keys: circle, tsp_partner, site_id, site_name, project_id
     items_df columns: item_code, item_description, qty, remarks (optional)
     """
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        topMargin=14 * mm,
-        bottomMargin=14 * mm,
-        leftMargin=14 * mm,
-        rightMargin=14 * mm,
-    )
+    c = pdfcanvas.Canvas(buffer, pagesize=A4)
 
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle("TitleStyle", parent=styles["Title"], fontSize=15, spaceAfter=0, alignment=1)
     label_style = ParagraphStyle("LabelStyle", parent=styles["Normal"], fontSize=9.5, fontName="Helvetica-Bold")
     value_style = ParagraphStyle("ValueStyle", parent=styles["Normal"], fontSize=9.5, fontName="Helvetica")
     cell_style = ParagraphStyle("CellStyle", parent=styles["Normal"], fontSize=8, leading=10)
     header_cell_style = ParagraphStyle("HeaderCellStyle", parent=styles["Normal"], fontSize=8.5, leading=10, fontName="Helvetica-Bold")
-    sig_caption_style = ParagraphStyle("SigCaptionStyle", parent=styles["Normal"], fontSize=7, textColor=colors.grey)
 
     def lbl(text):
         return Paragraph(text, label_style)
@@ -61,101 +60,118 @@ def generate_jms_pdf(header: dict, items_df) -> bytes:
     def val(text):
         return Paragraph(str(text) if text not in (None, "") else "&nbsp;", value_style)
 
-    elements = []
+    def draw_title(y):
+        c.setFont("Helvetica-Bold", 15)
+        c.drawCentredString(PAGE_W / 2, y, "VISIONTECH INFRA SOLUTIONS - JMS")
+        y -= 5 * mm
+        c.setLineWidth(1)
+        c.line(MARGIN, y, PAGE_W - MARGIN, y)
+        return y - 6 * mm
 
-    # ---- Title -------------------------------------------------------------
-    elements.append(Paragraph("VISIONTECH INFRA SOLUTIONS - JMS", title_style))
-    elements.append(Spacer(1, 1 * mm))
-    line_table = Table([[""]], colWidths=[182 * mm], rowHeights=[0.6])
-    line_table.setStyle(TableStyle([("LINEBELOW", (0, 0), (-1, 0), 1, colors.black)]))
-    elements.append(line_table)
-    elements.append(Spacer(1, 5 * mm))
-
-    # ---- Site info (plain 2-column grid, no borders — like the original) ---
-    site_rows = [
-        [lbl("Circle:"), val(header.get("circle", "")), "", ""],
-        [lbl("TSP Partner :-"), val(header.get("tsp_partner", "")), lbl("Site ID :-"), val(header.get("site_id", ""))],
-        [lbl("Site Name :-"), val(header.get("site_name", "")), lbl("Project ID :-"), val(header.get("project_id", ""))],
-    ]
-    site_table = Table(site_rows, colWidths=[85, 175, 72, 165])
-    site_table.setStyle(
-        TableStyle(
-            [
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("TOPPADDING", (0, 0), (-1, -1), 3),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
-            ]
+    def draw_site_box(y):
+        """Bordered box, full content width, 2x2 grid: Circle/Site ID, Site Name/Project ID."""
+        rows = [
+            [lbl("Circle:"), val(header.get("circle", "")), lbl("Site ID :-"), val(header.get("site_id", ""))],
+            [lbl("Site Name :-"), val(header.get("site_name", "")), lbl("Project ID :-"), val(header.get("project_id", ""))],
+        ]
+        col_w = [62, CONTENT_W / 2 - 62, 65, CONTENT_W / 2 - 65]
+        t = Table(rows, colWidths=col_w)
+        t.setStyle(
+            TableStyle(
+                [
+                    ("BOX", (0, 0), (-1, -1), 1, colors.black),
+                    ("LINEAFTER", (1, 0), (1, -1), 0.5, colors.black),
+                    ("LINEBELOW", (0, 0), (-1, 0), 0.5, colors.black),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ]
+            )
         )
-    )
-    elements.append(site_table)
-    elements.append(Spacer(1, 6 * mm))
+        tw, th = t.wrapOn(c, CONTENT_W, y)
+        t.drawOn(c, MARGIN, y - th)
+        return y - th - 7 * mm
 
-    # ---- Line items table (plain black/white, grey header) -----------------
-    table_header = [Paragraph(h, header_cell_style) for h in ["S.No.", "Item Code", "Item Description", "Qty as per site", "Remarks"]]
-    table_data = [table_header]
-    for i, row in enumerate(items_df.itertuples(index=False), start=1):
-        table_data.append(
-            [
-                str(i),
-                Paragraph(str(getattr(row, "item_code", "")), cell_style),
-                Paragraph(str(getattr(row, "item_description", "")), cell_style),
-                f"{getattr(row, 'qty', 0):g}",
-                getattr(row, "remarks", "") or "",
-            ]
+    def draw_items_table(y):
+        table_header = [Paragraph(h, header_cell_style) for h in ["S.No.", "Item Code", "Item Description", "Qty as per site", "Remarks"]]
+        table_data = [table_header]
+        for i, row in enumerate(items_df.itertuples(index=False), start=1):
+            table_data.append(
+                [
+                    str(i),
+                    Paragraph(str(getattr(row, "item_code", "")), cell_style),
+                    Paragraph(str(getattr(row, "item_description", "")), cell_style),
+                    f"{getattr(row, 'qty', 0):g}",
+                    getattr(row, "remarks", "") or "",
+                ]
+            )
+        col_widths = [38, 88, CONTENT_W - 38 - 88 - 65 - 61, 65, 61]
+        t = Table(table_data, colWidths=col_widths)
+        t.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e5e7eb")),
+                    ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+                    ("ALIGN", (0, 0), (0, -1), "CENTER"),
+                    ("ALIGN", (3, 0), (3, -1), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
         )
+        tw, th = t.wrapOn(c, CONTENT_W, y)
+        t.drawOn(c, MARGIN, y - th)
+        return y - th
 
-    col_widths = [38, 88, 231, 65, 61]
-    items_table = Table(table_data, colWidths=col_widths, repeatRows=1)
-    items_table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e5e7eb")),
-                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
-                ("ALIGN", (0, 0), (0, -1), "CENTER"),
-                ("ALIGN", (3, 0), (3, -1), "CENTER"),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ]
-        )
-    )
-    elements.append(items_table)
-    elements.append(Spacer(1, 8 * mm))
+    def draw_signature_boxes():
+        """2 large boxes, side by side, anchored to the bottom margin of the page."""
+        box_w = (CONTENT_W - BOX_GAP) / 2
+        box_bottom = MARGIN
+        box_top = MARGIN + BOX_AREA_HEIGHT
 
-    # ---- Signature section (plain, bordered boxes) --------------------------
-    sig_rows = [
-        [lbl("Partner Supervisor Name :-"), val(header.get("partner_supervisor_name", "")),
-         lbl("Audit Engineer Name :-"), val(header.get("audit_engineer_name", ""))],
-        [Paragraph("Signature", sig_caption_style), "", Paragraph("Signature", sig_caption_style), ""],
-        [lbl("TSP Partner Name :"), val(header.get("tsp_partner", "")),
-         lbl("Agency Name :"), val(header.get("agency_name", ""))],
-        [Paragraph("Signature", sig_caption_style), "", Paragraph("Signature", sig_caption_style), ""],
-    ]
-    sig_table = Table(sig_rows, colWidths=[95, 130, 90, 140], rowHeights=[9 * mm, 16 * mm, 9 * mm, 16 * mm])
-    sig_table.setStyle(
-        TableStyle(
-            [
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("TOPPADDING", (0, 0), (-1, -1), 3),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                ("BOX", (0, 1), (1, 1), 0.75, colors.black),
-                ("BOX", (2, 1), (3, 1), 0.75, colors.black),
-                ("BOX", (0, 3), (1, 3), 0.75, colors.black),
-                ("BOX", (2, 3), (3, 3), 0.75, colors.black),
-                ("LEFTPADDING", (0, 1), (0, 1), 4),
-                ("LEFTPADDING", (2, 1), (2, 1), 4),
-                ("LEFTPADDING", (0, 3), (0, 3), 4),
-                ("LEFTPADDING", (2, 3), (2, 3), 4),
-                ("TOPPADDING", (0, 1), (-1, 1), 3),
-                ("TOPPADDING", (0, 3), (-1, 3), 3),
-            ]
-        )
-    )
-    elements.append(sig_table)
+        left_x = MARGIN
+        right_x = MARGIN + box_w + BOX_GAP
 
-    doc.build(elements)
+        c.setLineWidth(1)
+        c.rect(left_x, box_bottom, box_w, BOX_AREA_HEIGHT)
+        c.rect(right_x, box_bottom, box_w, BOX_AREA_HEIGHT)
+
+        # --- Box 1 (left): TSP Partner Name, text anchored near the bottom ---
+        text_pad = 6 * mm
+        line1_y = box_bottom + 13 * mm
+        line2_y = box_bottom + 6 * mm
+        c.setFont("Helvetica-Bold", 9.5)
+        c.drawString(left_x + text_pad, line1_y, "TSP Partner Name :")
+        c.setFont("Helvetica", 9.5)
+        c.drawString(left_x + text_pad, line2_y, header.get("tsp_partner", "Visiontech Infra Solutions"))
+
+        # --- Box 2 (right): Auditor Name / Audit Agency, blank for handwriting ---
+        c.setFont("Helvetica-Bold", 9.5)
+        c.drawString(right_x + text_pad, line1_y, "Auditor Name :-")
+        c.drawString(right_x + text_pad, line2_y, "Audit Agency :-")
+
+        return box_top
+
+    # ---- Page 1: title, site box, items table ------------------------------
+    y = PAGE_H - MARGIN
+    y = draw_title(y)
+    y = draw_site_box(y)
+    y_after_table = draw_items_table(y)
+
+    box_top_needed = MARGIN + BOX_AREA_HEIGHT + 6 * mm
+
+    if y_after_table < box_top_needed:
+        # Items table ran into the reserved bottom-box area — put the
+        # signature boxes on a fresh page instead of overlapping them.
+        c.showPage()
+
+    draw_signature_boxes()
+
+    c.showPage()
+    c.save()
     buffer.seek(0)
     return buffer.getvalue()
