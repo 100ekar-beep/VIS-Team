@@ -11,7 +11,7 @@ from utils.data import (
     get_full_site_detail, get_technician_fse_for_site, submit_status_request,
 )
 from utils.pdf_generator import generate_jms_pdf
-from utils.email_sender import send_site_photos_email, is_email_configured
+from utils.email_sender import send_site_photos_email, send_site_jms_email, is_email_configured
 
 st.set_page_config(page_title="Site Data", page_icon="📍", layout="wide")
 
@@ -274,6 +274,23 @@ def render_create_jms_tab(site: dict):
             use_container_width=True,
         )
         st.caption("Note: Ye PDF sirf aapke mobile/device pe save hogi — Supabase mein kuch save nahi hota.")
+
+        st.divider()
+        st.markdown("**📧 Add JMS** — email se bhi bhej sakte ho (isi PDF ko)")
+        if not is_email_configured():
+            st.warning("Email abhi configure nahi hai. Streamlit Secrets mein EMAIL_SENDER, EMAIL_PASSWORD, EMAIL_RECEIVER daalo.")
+        if st.button("📧 Submit JMS via Email", use_container_width=True):
+            with st.spinner("Email bheji jaa rahi hai..."):
+                success, message = send_site_jms_email(
+                    site,
+                    st.session_state["last_jms_pdf"],
+                    st.session_state.get("last_jms_filename", "JMS.pdf"),
+                    user["team_name"],
+                )
+            if success:
+                st.success(message)
+            else:
+                st.error(message)
 
 
 def render_site_status_tab(site: dict):
