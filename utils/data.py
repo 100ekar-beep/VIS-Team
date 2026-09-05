@@ -21,14 +21,15 @@ DEMO_USERS = [
         "team_name": "Pramodkumar Jaju",  # must match Team Name in DEMO_SITES below
         "mobile_number": "9999999999",
         "user_id": "EMP-DEMO",
+        "is_admin": True,  # so the Team Request admin page is also testable in demo mode
     }
 ]
 DEMO_PASSWORD = "demo123"  # only used in demo mode
 
 DEMO_SITES = [
-    {"id": "site-1", "Project ID": "OM-RELIBB-3208576", "Site ID": "IN-1330136", "Site Name": "Wadwani2", "Team Name": "Pramodkumar Jaju"},
-    {"id": "site-2", "Project ID": "OM-RELIBB-3618036", "Site ID": "IN-3202039", "Site Name": "Kaudgaon Ghoda", "Team Name": "Pramodkumar Jaju"},
-    {"id": "site-3", "Project ID": "OM-RELIBB-3127313", "Site ID": "IN-1106033", "Site Name": "Jategaon_Bed", "Team Name": "Pramodkumar Jaju"},
+    {"id": "site-1", "Project ID": "OM-RELIBB-3208576", "Site ID": "IN-1330136", "Site Name": "Wadwani2", "Team Name": "Pramodkumar Jaju", "Cluster": "Beed", "Work Description": "Battery Bank SRN", "Site Status": "Open"},
+    {"id": "site-2", "Project ID": "OM-RELIBB-3618036", "Site ID": "IN-3202039", "Site Name": "Kaudgaon Ghoda", "Team Name": "Pramodkumar Jaju", "Cluster": "Beed", "Work Description": "Battery Bank SRN", "Site Status": "Open"},
+    {"id": "site-3", "Project ID": "OM-RELIBB-3127313", "Site ID": "IN-1106033", "Site Name": "Jategaon_Bed", "Team Name": "Pramodkumar Jaju", "Cluster": "Beed", "Work Description": "Battery Bank SRN", "Site Status": "Open"},
 ]
 
 DEMO_ITEMS = [
@@ -83,13 +84,13 @@ def get_user_by_mobile(mobile_number: str):
     if is_demo_mode():
         for u in DEMO_USERS:
             if u["mobile_number"] == mobile_number:
-                return {**u, "password": None}
+                return {**u, "password": None, "is_admin": u.get("is_admin", False)}
         return None
 
     client = get_supabase_client()
     resp = (
         client.table("app_users")
-        .select("id, team_name, mobile_number, user_id, password")
+        .select("id, team_name, mobile_number, user_id, password, is_admin")
         .eq("mobile_number", mobile_number)
         .limit(1)
         .execute()
@@ -100,6 +101,9 @@ def get_user_by_mobile(mobile_number: str):
 # ---------------------------------------------------------------------------
 # SITES
 # ---------------------------------------------------------------------------
+SITE_LIST_COLUMNS = ["id", "Project ID", "Site ID", "Site Name", "Team Name", "Cluster", "Work Description", "Site Status"]
+
+
 def get_sites_for_user(team_name: str) -> pd.DataFrame:
     """
     Returns sites where site_data."Team Name" matches this user's team_name.
@@ -113,11 +117,130 @@ def get_sites_for_user(team_name: str) -> pd.DataFrame:
     client = get_supabase_client()
     resp = (
         client.table("site_data")
-        .select('id,"Project ID","Site ID","Site Name","Team Name"')
+        .select('id,"Project ID","Site ID","Site Name","Team Name","Cluster","Work Description","Site Status"')
         .eq("Team Name", team_name)
         .execute()
     )
-    return pd.DataFrame(resp.data, columns=["id", "Project ID", "Site ID", "Site Name", "Team Name"])
+    return pd.DataFrame(resp.data, columns=SITE_LIST_COLUMNS)
+
+
+def get_full_site_detail(site_row_id: str) -> dict:
+    """Returns the FULL site_data row (every column) for the detail view."""
+    if is_demo_mode():
+        for s in DEMO_SITES:
+            if s["id"] == site_row_id:
+                return s
+        return {}
+
+    client = get_supabase_client()
+    resp = client.table("site_data").select("*").eq("id", site_row_id).limit(1).execute()
+    return resp.data[0] if resp.data else {}
+
+
+# ---------------------------------------------------------------------------
+# TECHNICIAN / FSE (from the "Excalation Matrix" table, matched by Site ID —
+# same variant-column matching approach as the Indus Site Data page)
+# ---------------------------------------------------------------------------
+@st.cache_data(ttl=60, show_spinner=False)
+def get_technician_fse_for_site(site_id: str) -> dict:
+    empty = {"tech_name": "-", "tech_num": "-", "fse_name": "-", "fse_num": "-"}
+    if not site_id:
+        return empty
+    if is_demo_mode():
+        return {"tech_name": "Demo Technician", "tech_num": "9999999999", "fse_name": "Demo FSE", "fse_num": "8888888888"}
+
+    client = get_supabase_client()
+    tables_to_try = ["Excalation Matrix", "Escalation Matrix", "Indus Data"]
+    id_cols_to_try = ["Indus ID", "Site ID", "indus_id", "site_id"]
+
+    for t in tables_to_try:
+        for id_col in id_cols_to_try:
+            try:
+                res = client.table(t).select("*").ilike(id_col, f"%{site_id}%").execute()
+                if res.data:
+                    row = res.data[0]
+                    return {
+                        "tech_name": row.get("Technician Detail", row.get("Tech Name", "-")),
+                        "tech_num": row.get("Technician Number", row.get("Tech Number", "-")),
+                        "fse_name": row.get("FSE Detail", row.get("FSE Name", row.get("FSE", "-"))),
+                        "fse_num": row.get("FSE Number", "-"),
+                    }
+            except Exception:
+                continue
+    return empty
+
+
+# ---------------------------------------------------------------------------
+# SITE STATUS REQUESTS (team submits -> pending -> admin approves/rejects)
+# ---------------------------------------------------------------------------
+DEMO_REQUESTS = []  # in-memory, demo mode only
+
+
+def submit_status_request(site: dict, requested_status: str, remark: str, requested_by: str):
+    payload = {
+        "site_row_id": site.get("id"),
+        "site_id": site.get("Site ID", ""),
+        "site_name": site.get("Site Name", ""),
+        "project_id": site.get("Project ID", ""),
+        "requested_status": requested_status,
+        "remark": remark,
+        "requested_by": requested_by,
+        "status": "pending",
+    }
+    if is_demo_mode():
+        payload["id"] = len(DEMO_REQUESTS) + 1
+        DEMO_REQUESTS.append(payload)
+        return True
+
+    client = get_supabase_client()
+    client.table("site_status_requests").insert(payload).execute()
+    return True
+
+
+def get_pending_requests() -> pd.DataFrame:
+    cols = ["id", "site_row_id", "site_id", "site_name", "project_id", "requested_status", "remark", "requested_by", "status", "created_at"]
+    if is_demo_mode():
+        pending = [r for r in DEMO_REQUESTS if r["status"] == "pending"]
+        return pd.DataFrame(pending, columns=cols)
+
+    client = get_supabase_client()
+    resp = (
+        client.table("site_status_requests")
+        .select("*")
+        .eq("status", "pending")
+        .order("created_at", desc=False)
+        .execute()
+    )
+    return pd.DataFrame(resp.data, columns=cols)
+
+
+def approve_request(request_id, site_row_id, new_status: str):
+    if is_demo_mode():
+        for r in DEMO_REQUESTS:
+            if r["id"] == request_id:
+                r["status"] = "approved"
+        for s in DEMO_SITES:
+            if s["id"] == site_row_id:
+                s["Site Status"] = new_status
+        return True
+
+    client = get_supabase_client()
+    if site_row_id:
+        client.table("site_data").update({"Site Status": new_status}).eq("id", site_row_id).execute()
+    client.table("site_status_requests").update({"status": "approved"}).eq("id", request_id).execute()
+    return True
+
+
+def reject_request(request_id):
+    if is_demo_mode():
+        for r in DEMO_REQUESTS:
+            if r["id"] == request_id:
+                r["status"] = "rejected"
+        return True
+
+    client = get_supabase_client()
+    client.table("site_status_requests").update({"status": "rejected"}).eq("id", request_id).execute()
+    return True
 
 
 # ---------------------------------------------------------------------------
