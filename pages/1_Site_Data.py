@@ -281,7 +281,7 @@ def render_site_status_tab(site: dict):
     st.markdown(f"**Current Status:** {current_status}")
     st.divider()
 
-    status_choice = st.selectbox("New Status", options=["Completed", "HOLD", "Other"], key="status_choice")
+    status_choice = st.selectbox("New Status", options=["Completed", "HOLD"], key="status_choice")
     remark = st.text_area("Remark", placeholder="Site status ke baare mein kuch likho...", key="status_remark")
 
     st.caption("⚠️ Ye status seedha update nahi hoga — request admin ko jayegi approval ke liye.")
@@ -336,10 +336,6 @@ def site_detail_dialog(site: dict):
     d1.markdown(f"**Work Description**  \n{full_detail.get('Work Description', '-')}")
     d2.markdown(f"**Technician**  \n{tech_fse.get('tech_name', '-')} ({tech_fse.get('tech_num', '-')})")
     d3.markdown(f"**FSE**  \n{tech_fse.get('fse_name', '-')} ({tech_fse.get('fse_num', '-')})")
-
-    with st.expander("Poori site detail dekho (Supabase se)"):
-        detail_view = {k: v for k, v in full_detail.items() if k != "id"}
-        st.json(detail_view)
 
     st.divider()
 
