@@ -53,19 +53,23 @@ def send_site_photos_email(site: dict, uploaded_files, team_name: str, note: str
     msg = MIMEMultipart()
     msg["From"] = sender
     msg["To"] = receiver
-    msg["Subject"] = f"Site Photos — {site.get('Site Name', '')} ({site.get('Site ID', '')})"
+    msg["Subject"] = f"Photos_{site.get('Project ID', '')}_{site.get('Site ID', '')}_{site.get('Site Name', '')}"
 
-    body_lines = [
-        f"Team: {team_name}",
-        f"Site Name: {site.get('Site Name', '')}",
-        f"Site ID: {site.get('Site ID', '')}",
-        f"Project ID: {site.get('Project ID', '')}",
-        f"Photos attached: {len(uploaded_files)}",
-    ]
+    body = (
+        f"Hello Sir,\n\n"
+        f"Please find attached subjected site photos.\n\n"
+        f"Thanks,\n"
+        f"{team_name}"
+    )
     if note:
-        body_lines.append("")
-        body_lines.append(f"Note: {note}")
-    msg.attach(MIMEText("\n".join(body_lines), "plain"))
+        body = (
+            f"Hello Sir,\n\n"
+            f"Please find attached subjected site photos.\n\n"
+            f"Note: {note}\n\n"
+            f"Thanks,\n"
+            f"{team_name}"
+        )
+    msg.attach(MIMEText(body, "plain"))
 
     for f in uploaded_files:
         f.seek(0)
