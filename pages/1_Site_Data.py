@@ -303,28 +303,20 @@ def render_site_photos_tab(site: dict):
         key=f"site_photos_{site.get('id')}",
     )
 
-    jms_available = bool(st.session_state.get("last_jms_pdf"))
-    attach_jms = st.checkbox(
-        "📎 Add JMS (isi email mein generated JMS PDF bhi attach karo)",
-        value=False,
-        disabled=not jms_available,
-        key=f"attach_jms_{site.get('id')}",
+    jms_files = st.file_uploader(
+        "JMS (PDF ya Photo)", type=["pdf", "jpg", "jpeg", "png"], accept_multiple_files=True,
+        key=f"jms_files_{site.get('id')}",
     )
-    if not jms_available:
-        st.caption("Pehle 'Create JMS' tab mein JMS PDF generate karo, tabhi ye yaha attach ho payegi.")
 
     note = st.text_input("Note (optional)", key=f"site_photo_note_{site.get('id')}")
 
-    st.caption("Photos (aur JMS, agar attach kiya) sirf email ke through bheji jaati hai — Supabase ya kahi bhi save nahi hoti.")
+    st.caption("Photos aur JMS files sirf email ke through bheji jaati hai — Supabase ya kahi bhi save nahi hoti.")
 
-    submit_disabled = not photos and not (attach_jms and jms_available)
+    submit_disabled = not photos and not jms_files
     if st.button("📧 Submit Photos", type="primary", use_container_width=True, disabled=submit_disabled):
-        jms_bytes = st.session_state.get("last_jms_pdf") if (attach_jms and jms_available) else None
-        jms_filename = st.session_state.get("last_jms_filename", "JMS.pdf")
         with st.spinner("Email bheji jaa rahi hai..."):
             success, message = send_site_photos_email(
-                site, photos or [], user["team_name"], note,
-                jms_pdf_bytes=jms_bytes, jms_filename=jms_filename,
+                site, photos or [], user["team_name"], note, jms_files=jms_files or [],
             )
         if success:
             st.success(message)
