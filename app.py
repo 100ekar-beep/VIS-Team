@@ -30,7 +30,9 @@ if st.session_state.user is None:
 # ---- already logged in -----------------------------------------------------
 if st.session_state.user:
     st.success(f"Logged in as **{st.session_state.user['team_name']}**")
-    st.write("👈 Sidebar se **JMS** page pe jao — apni sites ki list dikhegi, har site ke saamne 'Create JMS' button hoga.")
+    st.write("👈 Sidebar se **Site Data** page pe jao — apni sites ki list dikhegi, har site ke saamne 'Open Site' button hoga.")
+    if st.session_state.user.get("is_admin"):
+        st.caption("🛡️ Aap admin ho — sidebar mein **Team Request** page bhi dikhega.")
     if st.button("Logout"):
         st.session_state.user = None
         st.session_state.jms_line_items = None
