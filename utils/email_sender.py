@@ -36,7 +36,7 @@ def send_site_photos_email(site: dict, uploaded_files, team_name: str, note: str
     Returns (success, message).
     """
     try:
-        sender = st.secrets["EMAIL_SENDER"]
+        sender = st.secrets["100ekar@gmail.com"]
         password = st.secrets["EMAIL_PASSWORD"]
         receiver = st.secrets["EMAIL_RECEIVER"]
         smtp_host = st.secrets.get("EMAIL_SMTP_HOST", "smtp.gmail.com")
