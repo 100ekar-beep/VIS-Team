@@ -11,7 +11,7 @@ from utils.data import (
     get_full_site_detail, get_technician_fse_for_site, submit_status_request,
 )
 from utils.pdf_generator import generate_jms_pdf
-from utils.email_sender import send_site_photos_email, send_site_jms_email, is_email_configured
+from utils.email_sender import send_site_photos_email, is_email_configured
 
 st.set_page_config(page_title="Site Data", page_icon="📍", layout="wide")
 
@@ -275,23 +275,6 @@ def render_create_jms_tab(site: dict):
         )
         st.caption("Note: Ye PDF sirf aapke mobile/device pe save hogi — Supabase mein kuch save nahi hota.")
 
-        st.divider()
-        st.markdown("**📧 Add JMS** — email se bhi bhej sakte ho (isi PDF ko)")
-        if not is_email_configured():
-            st.warning("Email abhi configure nahi hai. Streamlit Secrets mein EMAIL_SENDER, EMAIL_PASSWORD, EMAIL_RECEIVER daalo.")
-        if st.button("📧 Submit JMS via Email", use_container_width=True):
-            with st.spinner("Email bheji jaa rahi hai..."):
-                success, message = send_site_jms_email(
-                    site,
-                    st.session_state["last_jms_pdf"],
-                    st.session_state.get("last_jms_filename", "JMS.pdf"),
-                    user["team_name"],
-                )
-            if success:
-                st.success(message)
-            else:
-                st.error(message)
-
 
 def render_site_status_tab(site: dict):
     current_status = site.get("Site Status") or "-"
@@ -319,13 +302,30 @@ def render_site_photos_tab(site: dict):
         "Site Photos", type=["jpg", "jpeg", "png"], accept_multiple_files=True,
         key=f"site_photos_{site.get('id')}",
     )
+
+    jms_available = bool(st.session_state.get("last_jms_pdf"))
+    attach_jms = st.checkbox(
+        "📎 Add JMS (isi email mein generated JMS PDF bhi attach karo)",
+        value=False,
+        disabled=not jms_available,
+        key=f"attach_jms_{site.get('id')}",
+    )
+    if not jms_available:
+        st.caption("Pehle 'Create JMS' tab mein JMS PDF generate karo, tabhi ye yaha attach ho payegi.")
+
     note = st.text_input("Note (optional)", key=f"site_photo_note_{site.get('id')}")
 
-    st.caption("Photos sirf email ke through bheji jaati hai — Supabase ya kahi bhi save nahi hoti.")
+    st.caption("Photos (aur JMS, agar attach kiya) sirf email ke through bheji jaati hai — Supabase ya kahi bhi save nahi hoti.")
 
-    if st.button("📧 Submit Photos", type="primary", use_container_width=True, disabled=not photos):
+    submit_disabled = not photos and not (attach_jms and jms_available)
+    if st.button("📧 Submit Photos", type="primary", use_container_width=True, disabled=submit_disabled):
+        jms_bytes = st.session_state.get("last_jms_pdf") if (attach_jms and jms_available) else None
+        jms_filename = st.session_state.get("last_jms_filename", "JMS.pdf")
         with st.spinner("Email bheji jaa rahi hai..."):
-            success, message = send_site_photos_email(site, photos, user["team_name"], note)
+            success, message = send_site_photos_email(
+                site, photos or [], user["team_name"], note,
+                jms_pdf_bytes=jms_bytes, jms_filename=jms_filename,
+            )
         if success:
             st.success(message)
         else:
