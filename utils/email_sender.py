@@ -36,9 +36,9 @@ def send_site_photos_email(site: dict, uploaded_files, team_name: str, note: str
     Returns (success, message).
     """
     try:
-        sender = st.secrets["100ekar@gmail.com"]
-        password = st.secrets["orka nwlt sahr rlrl"]
-        receiver = st.secrets["whizkeyiot@gmail.com"]
+        sender = st.secrets["EMAIL_SENDER"]
+        password = st.secrets["EMAIL_PASSWORD"]
+        receiver = st.secrets["EMAIL_RECEIVER"]
         smtp_host = st.secrets.get("EMAIL_SMTP_HOST", "smtp.gmail.com")
         smtp_port = int(st.secrets.get("EMAIL_SMTP_PORT", 587))
     except Exception:
@@ -55,9 +55,18 @@ def send_site_photos_email(site: dict, uploaded_files, team_name: str, note: str
     msg["To"] = receiver
     msg["Subject"] = f"Photos_{site.get('Project ID', '')}_{site.get('Site ID', '')}_{site.get('Site Name', '')}"
 
+    detail_lines = (
+        f"Project ID: {site.get('Project ID', '')}\n"
+        f"Site ID: {site.get('Site ID', '')}\n"
+        f"Site Name: {site.get('Site Name', '')}\n"
+        f"Cluster: {site.get('Cluster', '')}\n"
+        f"Photos attached: {len(uploaded_files)}"
+    )
+
     body = (
         f"Hello Sir,\n\n"
         f"Please find attached subjected site photos.\n\n"
+        f"{detail_lines}\n\n"
         f"Thanks,\n"
         f"{team_name}"
     )
@@ -65,6 +74,7 @@ def send_site_photos_email(site: dict, uploaded_files, team_name: str, note: str
         body = (
             f"Hello Sir,\n\n"
             f"Please find attached subjected site photos.\n\n"
+            f"{detail_lines}\n\n"
             f"Note: {note}\n\n"
             f"Thanks,\n"
             f"{team_name}"
