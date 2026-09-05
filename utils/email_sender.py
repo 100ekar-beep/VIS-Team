@@ -37,8 +37,8 @@ def send_site_photos_email(site: dict, uploaded_files, team_name: str, note: str
     """
     try:
         sender = st.secrets["100ekar@gmail.com"]
-        password = st.secrets["EMAIL_PASSWORD"]
-        receiver = st.secrets["EMAIL_RECEIVER"]
+        password = st.secrets["orka nwlt sahr rlrl"]
+        receiver = st.secrets["whizkeyiot@gmail.com"]
         smtp_host = st.secrets.get("EMAIL_SMTP_HOST", "smtp.gmail.com")
         smtp_port = int(st.secrets.get("EMAIL_SMTP_PORT", 587))
     except Exception:
